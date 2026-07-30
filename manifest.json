@@ -16,7 +16,17 @@
     "service_worker": "background/worker.js"
   },
   "action": {
-    "default_title": "NRA Unfollow"
+    "default_title": "NRA Unfollow",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
   },
   "content_scripts": [
     {
