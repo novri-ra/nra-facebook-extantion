@@ -179,13 +179,13 @@ function finishScan(iframe, targetOrigin) {
     const friends = (window.NraScraper && window.NraScraper.extractFriendsFromDOM) 
       ? window.NraScraper.extractFriendsFromDOM() 
       : []; 
+      
     iframe.contentWindow.postMessage({ 
       action: 'SCAN_COMPLETE', 
       friends 
-
+    }, targetOrigin);
+  }, 500);
+}
 // Fungsi Scraper lama dihapus untuk mencegah race condition / konflik modul
-// (Telah dipindah sepenuhnya ke content/scraper.js)
-
-// Listener pindah ke master_listener.js untuk hindari race condition
 
 // Listener pindah ke master_listener.js untuk hindari race condition
