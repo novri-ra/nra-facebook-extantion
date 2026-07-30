@@ -15,6 +15,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Javascript Obfuscator
+        run: npm install -g javascript-obfuscator
+
+      - name: Obfuscate JavaScript files
+        run: |
+          javascript-obfuscator content/dom.js --output content/dom.js
+          javascript-obfuscator content/executor.js --output content/executor.js
+          javascript-obfuscator popup/popup.js --output popup/popup.js
+
       - name: Zip Extension
         run: |
           zip -r extension.zip . -x "*.git*" -x ".github/*"
