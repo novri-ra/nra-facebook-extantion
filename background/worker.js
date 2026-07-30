@@ -9,10 +9,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // Listener untuk action icon click
 chrome.action.onClicked.addListener((tab) => {
   if (tab.url && !tab.url.startsWith("chrome://") && !tab.url.startsWith("edge://") && tab.url.includes("facebook.com")) {
-    chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_SIDEBAR' }, (response) => {
-      if (chrome.runtime.lastError) {
-        // Silent fail
-      }
-    });
+    try {
+      chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_SIDEBAR' }, (response) => {
+        if (chrome.runtime.lastError) {
+          // Silent fail
+        }
+      });
+    } catch (e) {
+      // Ignored
+    }
   }
 });

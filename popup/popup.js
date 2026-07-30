@@ -35,6 +35,8 @@ function log(msg, type = 'info') {
     formattedMsg = `<span style="color: var(--accent-yellow);">${msg}</span>`;
   } else if (msg.includes('[OK]')) {
     formattedMsg = `<span style="color: var(--fg-color); font-weight: bold;">${msg}</span>`;
+  } else {
+    // Teks biasa dibiarkan var(--fg-highlight) (abu-abu terang)
   }
 
   // Tambah log BARU DI BAWAH (Append bottom)
@@ -52,10 +54,14 @@ async function sendToActiveTab(msg) {
     return null;
   }
   return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tab.id, msg, (res) => {
-      if (chrome.runtime.lastError) resolve(null);
-      else resolve(res);
-    });
+    try {
+      chrome.tabs.sendMessage(tab.id, msg, (res) => {
+        if (chrome.runtime.lastError) resolve(null);
+        else resolve(res);
+      });
+    } catch (e) {
+      resolve(null);
+    }
   });
 }
 
