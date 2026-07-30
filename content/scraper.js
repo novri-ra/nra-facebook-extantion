@@ -15,12 +15,15 @@ const Scraper = {
     let index = 0;
 
     moreBtns.forEach((btn) => {
-      // Cari parent row terdekat yang memuat elemen baris list item.
-      const row = btn.closest('div[data-visualcompletion="ignore-dynamic"]:not([role="banner"])');
-      
+      // [PERBAIKAN] Menggunakan selector DOM FB terbaru
+      let row = btn.closest('div[role="listitem"]');
+      if (!row) {
+        row = btn.closest('div[data-visualcompletion="ignore-dynamic"]');
+      }
+
       if (row) {
-        // Ekstraksi data profil dari tag Anchor <a>
-        const profileLink = row.querySelector('a[aria-label][role="link"]');
+        // Ekstraksi data profil dari elemen dengan aria-label profil
+        const profileLink = row.querySelector('a[aria-label], [role="link"][aria-label]');
         if (!profileLink) return;
 
         const friendName = profileLink.getAttribute('aria-label').trim() || "Unknown";

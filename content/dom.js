@@ -175,7 +175,15 @@ function startAutoScrollAndScan(targetOrigin) {
 
 function finishScan(iframe, targetOrigin) {
   setTimeout(() => {
-    const friends = scanFriendsRobust();
+    // Memprioritaskan penggunaan Scraper terpisah jika tersedia
+    let friends = [];
+    if (window.NraScraper && typeof window.NraScraper.extractFriendsFromDOM === 'function') {
+      friends = window.NraScraper.extractFriendsFromDOM();
+    } else {
+      // Fallback ke scraper bawaan dom.js
+      friends = scanFriendsRobust();
+    }
+    
     iframe.contentWindow.postMessage({ 
       action: 'SCAN_COMPLETE', 
       friends 
@@ -191,15 +199,21 @@ function scanFriendsRobust() {
   const result = [];
   const seenNames = new Set();
   let index = 0;
-
   moreBtns.forEach(btn => {
-    // Cari container baris induk terdekat
-    const row = btn.closest('[data-visualcompletion="ignore-dynamic"]');
-    
+    // [PERBAIKAN] FB terkadang menaruh tombol "More" di dalam div yang tidak punya "ignore-dynamic"
+    // Gunakan 'div[role="listitem"]' atau mundur ke atas sebagai kontainer baris yang valid
+    let row = btn.closest('div[role="listitem"]');
+    if (!row) {
+      // Fallback: Cari parent dengan 'data-visualcompletion="ignore-dynamic"'
+      row = btn.closest('div[data-visualcompletion="ignore-dynamic"]');
+    }
+
     if (row) {
-      // Cari elemen link profil yang memiliki aria-label
-      const profileLink = row.querySelector('a[aria-label]');
-      const friendName = profileLink ? profileLink.getAttribute('aria-label').trim() : "Unknown Friend";
+      // Cari elemen link profil yang memiliki aria-label (A atau elemen clickable lain)
+      const profileLink = row.querySelector('a[aria-label], [role="link"][aria-label]');
+      const rawLabel = profileLink ? profileLink.getAttribute('aria-label') : null;
+      const friendName = rawLabel ? rawLabel.trim() : "Unknown Friend";
+
 
       if (friendName !== "Unknown Friend") {
         // Filter duplikasi (kadang tombol "More" ter-render dobel di DOM shadow/hidden)
