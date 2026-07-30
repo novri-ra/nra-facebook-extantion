@@ -54,10 +54,14 @@ async function sendToActiveTab(msg) {
     return null;
   }
   return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tab.id, msg, (res) => {
-      if (chrome.runtime.lastError) resolve(null);
-      else resolve(res);
-    });
+    try {
+      chrome.tabs.sendMessage(tab.id, msg, (res) => {
+        if (chrome.runtime.lastError) resolve(null);
+        else resolve(res);
+      });
+    } catch (e) {
+      resolve(null);
+    }
   });
 }
 

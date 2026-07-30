@@ -23,7 +23,8 @@ const Scraper = {
         const profileLink = row.querySelector('a[aria-label][role="link"]');
         if (!profileLink) return;
 
-        const friendName = profileLink.getAttribute('aria-label').trim() || "Unknown";
+        const rawLabel = profileLink.getAttribute('aria-label');
+        const friendName = rawLabel ? rawLabel.trim() : "Unknown";
         const profileUrl = profileLink.href || "";
 
         // Filter duplikasi data akibat DOM yang merender-ulang list yang sama secara shadow

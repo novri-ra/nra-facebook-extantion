@@ -175,7 +175,11 @@ function startAutoScrollAndScan(targetOrigin) {
 
 function finishScan(iframe, targetOrigin) {
   setTimeout(() => {
-    const friends = scanFriendsRobust();
+    // Gunakan modul eksternal Scraper (agar tidak ada duplikasi kode)
+    const friends = (window.NraScraper && window.NraScraper.extractFriendsFromDOM) 
+      ? window.NraScraper.extractFriendsFromDOM() 
+      : []; 
+      
     iframe.contentWindow.postMessage({ 
       action: 'SCAN_COMPLETE', 
       friends 
@@ -183,47 +187,9 @@ function finishScan(iframe, targetOrigin) {
   }, 500);
 }
 
-// --- SCRAPER BARU (ROBUST) ---
-// Return format array object untuk dikirim ke background/popup
-function scanFriendsRobust() {
-  // Cari semua tombol "More" / "Lainnya"
-  const moreBtns = document.querySelectorAll('[aria-label="More"][role="button"], [aria-label="Lainnya"][role="button"]');
-  const result = [];
-  const seenNames = new Set();
-  let index = 0;
+// Fungsi Scraper lama dihapus untuk mencegah race condition / konflik modul
+// (Telah dipindah sepenuhnya ke content/scraper.js)
 
-  moreBtns.forEach(btn => {
-    // Cari container baris induk terdekat
-    const row = btn.closest('[data-visualcompletion="ignore-dynamic"]');
-    
-    if (row) {
-      // Cari elemen link profil yang memiliki aria-label
-      const profileLink = row.querySelector('a[aria-label]');
-      const friendName = profileLink ? profileLink.getAttribute('aria-label').trim() : "Unknown Friend";
-
-      if (friendName !== "Unknown Friend") {
-        // Filter duplikasi (kadang tombol "More" ter-render dobel di DOM shadow/hidden)
-        if (!seenNames.has(friendName)) {
-          seenNames.add(friendName);
-          
-          const targetId = `nra-target-${index}`;
-          row.setAttribute('data-nra-id', targetId);
-          btn.setAttribute('data-nra-btn', targetId);
-          
-          result.push({
-            id: targetId,
-            name: friendName
-          });
-          index++;
-        }
-      }
-    }
-  });
-
-  return result;
-}
-
-// Fungsi Scraper lama dihapus (scanFriends)
 
 
 // Listener pindah ke master_listener.js untuk hindari race condition
