@@ -186,9 +186,6 @@ function finishScan(iframe, targetOrigin) {
 // Fungsi Scraper lama dihapus untuk mencegah race condition / konflik modul
 // (Telah dipindah sepenuhnya ke content/scraper.js)
 
-
-
->>>>>>> main
-
+// Listener pindah ke master_listener.js untuk hindari race condition
 
 // Listener pindah ke master_listener.js untuk hindari race condition
