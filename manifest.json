@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "NRA Facebook Unfollow",
+  "version": "1.0.0",
+  "description": "Auto-unfollow teman Facebook dengan antarmuka Retro Terminal.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://*.facebook.com/*"
+  ],
+  "background": {
+    "service_worker": "background/worker.js"
+  },
+  "action": {
+    "default_title": "NRA Unfollow"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": [
+        "utils/delay.js",
+        "utils/state.js",
+        "content/dom.js",
+        "content/executor.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup/popup.html", "popup/popup.js", "assets/theme.css"],
+      "matches": ["*://*.facebook.com/*"]
+    }
+  ]
+}

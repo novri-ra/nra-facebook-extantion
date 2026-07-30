@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="../assets/theme.css">
+  <title>NRA Manager</title>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="nra-header">
+    <h1><span class="nra-status-dot">●</span> NRA FB MANAGER</h1>
+    <button class="btn-minimize" id="btn-close">[-]</button>
+  </header>
+
+  <!-- MODULE: ANALYTICS -->
+  <div class="nra-module">
+    <div class="nra-stats-grid">
+      <div class="stat-box">
+        <div class="stat-label">TOTAL TARGET</div>
+        <div class="stat-value" id="stat-total">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">PROCESSED</div>
+        <div class="stat-value" id="stat-processed">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">SUCCESS RATE</div>
+        <div class="stat-value" id="stat-success">0%</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">EST. TIME (ETA)</div>
+        <div class="stat-value" id="stat-eta">--:--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE: CONTROLS -->
+  <div class="nra-module">
+    <div class="nra-control-group">
+      <span class="nra-label">ACTION_TYPE:</span>
+      <select id="action_type" class="retro-select">
+        <option value="unfollow">UNFOLLOW</option>
+        <option value="unfriend">UNFRIEND</option>
+      </select>
+    </div>
+    
+    <div class="nra-control-group">
+      <label class="nra-chk-wrapper" style="color: #ffaa00;">
+        <input type="checkbox" id="chk-dry-run" checked>
+        <span>MODE_DRY_RUN (SAFE)</span>
+      </label>
+      
+      <label class="nra-chk-wrapper">
+        <input type="checkbox" id="chk-all" checked>
+        <span>SELECT_ALL</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- MODULE: MAIN ACTIONS -->
+  <div class="nra-module no-border">
+    <div class="nra-actions" style="margin-bottom: 6px;">
+      <button class="nra-btn" id="btn-scan">SCAN</button>
+      <button class="nra-btn" id="btn-execute">EXECUTE</button>
+    </div>
+    <div class="nra-actions">
+      <button class="nra-btn nra-danger" id="btn-kill">KILL SWITCH</button>
+    </div>
+  </div>
+
+  <!-- MAIN AREA (FLEX SCROLLABLE) -->
+  <div class="nra-main-area">
+    
+    <!-- TARGET LIST -->
+    <div class="nra-console-box">
+      <div class="nra-console-title">TARGET_BUFFER</div>
+      <div class="nra-console-content" id="friend-list">
+        <div style="text-align: center; color: var(--fg-dim); padding-top: 20px;">
+          &gt; No target data.<br>&gt; Init SCAN to populate.
+        </div>
+      </div>
+    </div>
+
+    <!-- TERMINAL LOGS -->
+    <div class="nra-log-console">
+      <div class="nra-console-title">TERMINAL_OUTPUT</div>
+      <div class="nra-log-content" id="status-log">
+&gt; SYSTEM BOOT... OK
+&gt; WAITING FOR COMMAND_</div>
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
