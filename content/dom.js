@@ -1,161 +1,162 @@
-// facebook_dom.js
-// Injector & Scraper minimalis untuk FB
+/**
+ * content/dom.js
+ * Injeksi UI Sidebar dan fungsi Auto-Scroll Halaman Facebook.
+ */
 
-const SELECTORS = {
-  // Update ini jika FB ganti class. Biasanya div role=listitem atau div dengan data-visualcompletion
-  friendRow: 'div[data-visualcompletion="ignore-dynamic"]:not([role="banner"]) div[role="listitem"]',
-  nameEl: 'a[role="link"][dir="auto"]',
-  moreBtn: 'div[aria-label="More"][role="button"], div[aria-label="Lainnya"][role="button"]' 
+// --- STATE ---
+const CONFIG = {
+  PANEL_WIDTH: 350,       // Lebar sidebar iframe
+  SCROLL_DELAY_MS: 2000,  // Interval antar deteksi scroll
+  MAX_STAGNANT: 4,        // Jumlah maksimal scroll buntu sebelum scan selesai
 };
 
-// --- KONSTANTA ---
-const PANEL_WIDTH = 350; // px
 let _sidebarVisible = false;
+let _scrollInterval = null;
 
-// --- INJECTOR ---
+// --- INJECTOR UI ---
+
+/**
+ * Buat dan pasang elemen iframe ke dalam body document.
+ * @returns {HTMLIFrameElement}
+ */
+function createSidebarIframe() {
+  const iframe = document.createElement('iframe');
+  iframe.id = 'nra-fb-sidebar-iframe';
+  iframe.src = chrome.runtime.getURL('popup/popup.html');
+  iframe.style.cssText = `
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: ${CONFIG.PANEL_WIDTH}px;
+    height: 100vh;
+    border: none;
+    border-left: 2px solid #38bdf8;
+    z-index: 999999;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+    transform: translateX(100%);
+    transition: transform 0.3s ease-in-out;
+  `;
+  document.body.appendChild(iframe);
+  return iframe;
+}
+
+/** Toggle kemunculan sidebar. */
 function toggleSidebar() {
   let iframe = document.getElementById('nra-fb-sidebar-iframe');
   
   if (!iframe) {
-    // Siapkan transisi body FB agar konten "terdorong" halus
     document.body.style.transition = 'margin-right 0.3s ease-in-out';
-    
-    // Iframe Panel
-    iframe = document.createElement('iframe');
-    iframe.id = 'nra-fb-sidebar-iframe';
-    iframe.src = chrome.runtime.getURL('popup/popup.html');
-    iframe.style.cssText = `
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: ${PANEL_WIDTH}px;
-      height: 100vh;
-      border: none;
-      border-left: 2px solid #00ff00;
-      z-index: 999999;
-      box-shadow: -5px 0 15px rgba(0,0,0,0.5);
-      transform: translateX(100%);
-      transition: transform 0.3s ease-in-out;
-    `;
-    document.body.appendChild(iframe);
-    
-    // Biarkan DOM render dulu sebelum translasi
+    iframe = createSidebarIframe();
+    // Beri waktu sejenak agar frame ter-render ke DOM sebelum memicu transisi geser
     setTimeout(() => openSidebar(iframe), 50);
   } else {
-    // Toggle state
-    if (_sidebarVisible) {
-      closeSidebar(iframe);
-    } else {
-      openSidebar(iframe);
-    }
+    _sidebarVisible ? closeSidebar(iframe) : openSidebar(iframe);
   }
 }
 
+/** Tampilkan sidebar. */
 function openSidebar(iframe) {
   _sidebarVisible = true;
   iframe.style.transform = 'translateX(0)';
-  document.body.style.marginRight = PANEL_WIDTH + 'px';
+  document.body.style.marginRight = `${CONFIG.PANEL_WIDTH}px`;
 }
 
+/** Sembunyikan sidebar. */
 function closeSidebar(iframe) {
   _sidebarVisible = false;
   iframe.style.transform = 'translateX(100%)';
   document.body.style.marginRight = '0px';
 }
 
-// --- POSTMESSAGE LISTENER (HOST) ---
-// Komunikasi Iframe <-> Host Script untuk by-pass isolasi MV3
-window.addEventListener('message', (event) => {
-  // Hanya proses pesan dari popup ekstensi kita sendiri
-  if (!event.origin.startsWith('chrome-extension://')) return;
+// --- DOM UTILS ---
 
-  if (event.data && event.data.action === 'REQUEST_SCAN') {
+/**
+ * Cari jumlah total target pertemanan yang tertulis di header (cth: "626 Teman").
+ * @returns {number} Jumlah total target.
+ */
+function parseFriendCount() {
+  const headings = [...document.querySelectorAll('a[role="link"]'), ...document.querySelectorAll('h2[dir="auto"]')];
+  for (const el of headings) {
+    const text = el.innerText.toLowerCase();
+    if (text.includes('friends') || text.includes('teman')) {
+      const match = text.match(/[\d,.]+/);
+      if (match) return parseInt(match[0].replace(/[,.]/g, ''), 10);
+    }
+  }
+  return 0;
+}
+
+/**
+ * Temukan kontainer yang dapat digulir spesifik pada layout Facebook terbaru.
+ * @returns {Element} Elemen yang mendukung scroll.
+ */
+function findScrollContainer() {
+  const thumbEl = document.querySelector('div[data-thumb="1"]');
+  if (thumbEl) {
+    const container = thumbEl.closest('div[style*="overflow"]');
+    if (container) return container;
+  }
+  return document.scrollingElement || document.body;
+}
+
+// --- SCANNING LISTENER & LOOP ---
+
+// Menerima perintah SCAN dari popup iframe
+window.addEventListener('message', (event) => {
+  if (event.origin.startsWith('chrome-extension://') && event.data?.action === 'REQUEST_SCAN') {
     startAutoScrollAndScan(event.origin);
   }
 });
 
-let _scrollInterval = null;
+/**
+ * Kirim hasil temuan akhir ke frame popup.
+ * @param {HTMLIFrameElement} iframe 
+ * @param {string} targetOrigin 
+ */
+function finishScan(iframe, targetOrigin) {
+  setTimeout(() => {
+    const friends = window.NraScraper?.extractFriendsFromDOM?.() || [];
+    iframe.contentWindow.postMessage({ action: 'SCAN_COMPLETE', friends }, targetOrigin);
+  }, 500);
+}
 
+/**
+ * Mulai interval auto-scroll yang memicu load malas (lazy-load) pada list teman FB.
+ * @param {string} targetOrigin 
+ */
 function startAutoScrollAndScan(targetOrigin) {
   const iframe = document.getElementById('nra-fb-sidebar-iframe');
   if (!iframe || !iframe.contentWindow) return;
 
   if (_scrollInterval) clearInterval(_scrollInterval);
 
-  // 1) Coba cari elemen total teman dari DOM (contoh: "626 friends" / "626 Teman")
-  let targetTotal = 0;
-  const headerLinks = document.querySelectorAll('a[role="link"]');
-  for (const link of headerLinks) {
-    const text = link.innerText.toLowerCase();
-    if (text.includes('friends') || text.includes('teman')) {
-      const match = text.match(/[\d,.]+/);
-      if (match) {
-        targetTotal = parseInt(match[0].replace(/[,.]/g, ''), 10);
-        break;
-      }
-    }
-  }
-
-  // Fallback ke elemen heading kalau link tidak ketemu
-  if (targetTotal === 0) {
-    const headings = document.querySelectorAll('h2[dir="auto"]');
-    for (const h2 of headings) {
-      const text = h2.innerText.toLowerCase();
-      if (text.includes('friends') || text.includes('teman')) {
-        const match = text.match(/[\d,.]+/);
-        if (match) {
-          targetTotal = parseInt(match[0].replace(/[,.]/g, ''), 10);
-          break;
-        }
-      }
-    }
-  }
-
-  let lastHeight = 0;
-  let stagnantCycles = 0;
-  const MAX_STAGNANT = 4; // Berhenti jika tinggi tidak berubah 4 kali
-
-  // Mencari container scroll khusus FB
-  const findScrollContainer = () => {
-    // Biasanya list teman FB berada di dalam div dengan scrollbar custom yg memiliki data-thumb="1"
-    const thumbEl = document.querySelector('div[data-thumb="1"]');
-    if (thumbEl) {
-      // Parent dari custom scrollbar biasanya adalah container yang sesungguhnya scrollable
-      const container = thumbEl.closest('div[style*="overflow"]');
-      if (container) return container;
-    }
-    // Fallback: Jika tidak ketemu, cari elemen scrollable terdalam, atau body
-    return document.scrollingElement || document.body;
-  };
-
+  const targetTotal = parseFriendCount();
   const scrollContainer = findScrollContainer();
-  lastHeight = scrollContainer.scrollHeight;
+  let lastHeight = scrollContainer.scrollHeight;
+  let stagnantCycles = 0;
 
   _scrollInterval = setInterval(() => {
-    // Atur scrollTop agar gulir ke paling bawah dari kontainer
+    // Paksa scroll hingga batas bawah viewport dan picu event
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
-    
-    // Pancing Facebook Lazy-loader untuk bereaksi dengan memicu event scroll manual
     scrollContainer.dispatchEvent(new Event('scroll', { bubbles: true }));
 
-    // Estimasi jumlah sementara
-    const tempCount = document.querySelectorAll('[aria-label="More"][role="button"], [aria-label="Lainnya"][role="button"]').length;
-    
-    // Kirim pesan PROGRESS
+    // Ambil jumlah pertemanan yang sudah ter-render sejauh ini
+    const tempCount = window.NraScraper?.extractFriendsFromDOM?.().length || 
+      document.querySelectorAll(window.NraScraper?.MORE_BTN_SELECTOR || '[aria-label="More"][role="button"]').length;
+
+    // Lapor kemajuan ke popup
     iframe.contentWindow.postMessage({ 
-      action: 'SCAN_PROGRESS', 
-      count: tempCount,
-      targetTotal: targetTotal 
+      action: 'SCAN_PROGRESS', count: tempCount, targetTotal 
     }, targetOrigin);
 
-    // Cek apakah sudah memenuhi target DOM
+    // Cek target maksimal tercapai
     if (targetTotal > 0 && tempCount >= targetTotal) {
       clearInterval(_scrollInterval);
       _scrollInterval = null;
-      finishScan(iframe, targetOrigin);
-      return;
+      return finishScan(iframe, targetOrigin);
     }
 
+    // Deteksi stagnansi tinggi halaman (apakah scroll mentok)
     const currentHeight = scrollContainer.scrollHeight;
     if (currentHeight === lastHeight) {
       stagnantCycles++;
@@ -164,28 +165,10 @@ function startAutoScrollAndScan(targetOrigin) {
       lastHeight = currentHeight;
     }
 
-    if (stagnantCycles >= MAX_STAGNANT) {
-      // Scroll mentok
+    if (stagnantCycles >= CONFIG.MAX_STAGNANT) {
       clearInterval(_scrollInterval);
       _scrollInterval = null;
       finishScan(iframe, targetOrigin);
     }
-  }, 2000); // 2 detik delay per user request
+  }, CONFIG.SCROLL_DELAY_MS);
 }
-
-function finishScan(iframe, targetOrigin) {
-  setTimeout(() => {
-    // Gunakan modul eksternal Scraper (agar tidak ada duplikasi kode)
-    const friends = (window.NraScraper && window.NraScraper.extractFriendsFromDOM) 
-      ? window.NraScraper.extractFriendsFromDOM() 
-      : []; 
-      
-    iframe.contentWindow.postMessage({ 
-      action: 'SCAN_COMPLETE', 
-      friends 
-    }, targetOrigin);
-  }, 500);
-}
-// Fungsi Scraper lama dihapus untuk mencegah race condition / konflik modul
-
-// Listener pindah ke master_listener.js untuk hindari race condition

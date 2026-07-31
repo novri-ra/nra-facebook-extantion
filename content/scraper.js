@@ -1,61 +1,91 @@
-// content/scraper.js
-// Modul ekstraksi DOM spesifik untuk daftar pertemanan Facebook
-// Di-include pada worker.js / dom.js / manifest (sebagai dependency modular).
+/**
+ * content/scraper.js
+ * Modul ekstraksi DOM untuk daftar pertemanan Facebook.
+ * Dipanggil oleh dom.js via window.NraScraper global.
+ */
 
 const Scraper = {
+
+  /** Selector tombol aksi ("More" / "Lainnya") per baris teman. */
+  MORE_BTN_SELECTOR: '[aria-label="More"][role="button"], [aria-label="Lainnya"][role="button"]',
+
   /**
-   * Mengekstrak seluruh item teman di halaman yang sudah ter-scroll.
-   * @returns {Array} array dari objek profile {id, name, elementUrl, label}
+   * Cari container baris teman terdekat dari sebuah elemen.
+   * Facebook menggunakan div[role="listitem"] atau div[data-visualcompletion].
+   * @param {Element} el - Elemen awal pencarian (biasanya tombol More).
+   * @returns {Element|null}
    */
-  extractFriendsFromDOM: () => {
-    // Cari semua tombol "More" / "Lainnya" yang merepresentasikan 1 item target profil
-    const moreBtns = document.querySelectorAll('[aria-label="More"][role="button"], [aria-label="Lainnya"][role="button"]');
+  findFriendRow(el) {
+    return el.closest('div[role="listitem"]')
+      || el.closest('div[data-visualcompletion="ignore-dynamic"]');
+  },
+
+  /**
+   * Ekstrak link profil pertama yang memiliki teks dari sebuah container.
+   * Fallback dari aria-label ke innerText untuk kompatibilitas DOM FB terbaru.
+   * @param {Element} container - Baris teman.
+   * @returns {{ name: string, url: string, label: string|null }|null}
+   */
+  extractProfile(container) {
+    const links = container.querySelectorAll('a[role="link"], a[href]');
+    const profileLink = Array.from(links).find(el =>
+      (el.innerText || el.textContent || '').trim().length > 0
+    );
+    if (!profileLink) return null;
+
+    const ariaLabel = profileLink.getAttribute('aria-label');
+    const name = (ariaLabel || profileLink.innerText || profileLink.textContent || '').trim();
+    if (!name) return null;
+
+    return {
+      name,
+      url: profileLink.href || '',
+      label: ariaLabel,
+    };
+  },
+
+  /**
+   * Ekstrak seluruh item teman dari halaman yang sudah di-scroll.
+   * Menandai setiap baris DOM dengan data-nra-id agar executor bisa mengaksesnya.
+   * @returns {Array<{ id: string, name: string, url: string, label: string|null }>}
+   */
+  extractFriendsFromDOM() {
+    const moreBtns = document.querySelectorAll(this.MORE_BTN_SELECTOR);
     const result = [];
-    const seenNames = new Set();
+    const seen = new Set();
     let index = 0;
 
     moreBtns.forEach((btn) => {
-      // [PERBAIKAN] Menggunakan selector DOM FB terbaru
-      let row = btn.closest('div[role="listitem"]');
-      if (!row) {
-        row = btn.closest('div[data-visualcompletion="ignore-dynamic"]');
-      }
+      const row = this.findFriendRow(btn);
+      if (!row) return;
 
-      if (row) {
-        // Ekstraksi data profil dari elemen dengan aria-label profil
-        const profileLink = row.querySelector('a[aria-label], [role="link"][aria-label]');
-        if (!profileLink) return;
+      const profile = this.extractProfile(row);
+      if (!profile) return;
 
-        const rawLabel = profileLink.getAttribute('aria-label');
-        const friendName = rawLabel ? rawLabel.trim() : "Unknown";
-        const profileUrl = profileLink.href || "";
+      // Deduplikasi berdasarkan nama dan URL
+      if (seen.has(profile.name) || seen.has(profile.url)) return;
+      seen.add(profile.name);
+      seen.add(profile.url);
 
-        // Filter duplikasi data akibat DOM yang merender-ulang list yang sama secara shadow
-        if (friendName !== "Unknown" && !seenNames.has(friendName)) {
-          seenNames.add(friendName);
-          
-          const targetId = `nra-target-scrape-${index}`;
-          // Tandai elemen DOM untuk dipakai executor di tahap selanjutnya
-          row.setAttribute('data-nra-id', targetId);
-          btn.setAttribute('data-nra-btn', targetId);
-          
-          result.push({
-            id: targetId,
-            name: friendName,
-            url: profileUrl,
-            label: profileLink.getAttribute('aria-label')
-          });
-          
-          index++;
-        }
-      }
+      const targetId = `nra-target-scrape-${index}`;
+      row.setAttribute('data-nra-id', targetId);
+      btn.setAttribute('data-nra-btn', targetId);
+
+      result.push({
+        id: targetId,
+        name: profile.name,
+        url: profile.url,
+        label: profile.label,
+      });
+
+      index++;
     });
 
     return result;
-  }
+  },
 };
 
-// Pastikan object global tersedia (jika digunakan via content_script window)
+// Expose ke global window agar bisa diakses oleh dom.js dan executor.js
 if (typeof window !== 'undefined') {
   window.NraScraper = Scraper;
 }

@@ -1,77 +1,100 @@
-// popup/popup.js
-// Logic UI sidebar retro terminal (DreamLab Redesign)
+/**
+ * popup/popup.js
+ * Antarmuka kontrol (UI) sidebar panel retro terminal.
+ */
 
-const elBtnScan = document.getElementById('btn-scan');
-const elBtnExec = document.getElementById('btn-execute');
-const elBtnKill = document.getElementById('btn-kill');
-const elChkAll = document.getElementById('chk-all');
-const elChkDryRun = document.getElementById('chk-dry-run');
-const elActionType = document.getElementById('action_type');
-const elList = document.getElementById('friend-list');
-const elLog = document.getElementById('status-log');
-const elBtnClose = document.getElementById('btn-close');
-
-// Analytics DOM
-const elStatTotal = document.getElementById('stat-total');
-const elStatProc = document.getElementById('stat-processed');
-const elStatSucc = document.getElementById('stat-success');
-const elStatEta = document.getElementById('stat-eta');
+// --- DOM REFS ---
+const el = {
+  btnScan:   document.getElementById('btn-scan'),
+  btnExec:   document.getElementById('btn-execute'),
+  btnKill:   document.getElementById('btn-kill'),
+  btnClose:  document.getElementById('btn-close'),
+  chkAll:    document.getElementById('chk-all'),
+  chkDryRun: document.getElementById('chk-dry-run'),
+  actionType: document.getElementById('action_type'),
+  list:      document.getElementById('friend-list'),
+  log:       document.getElementById('status-log'),
+  statTotal: document.getElementById('stat-total'),
+  statProc:  document.getElementById('stat-processed'),
+  statSucc:  document.getElementById('stat-success'),
+  statEta:   document.getElementById('stat-eta'),
+};
 
 let friendsData = [];
 let startTime = 0;
 
-// ---- HELPERS ----
-function log(msg, type = 'info') {
-  const text = elLog.innerHTML;
-  const lines = text.split('\n').filter(Boolean);
-  
-  let formattedMsg = msg;
-  // Apply span class based on message content or type for DreamLab colored logs
+// --- HELPERS ---
+
+/**
+ * Tulis pesan ke konsol terminal UI dengan pewarnaan otomatis.
+ * @param {string} msg - Pesan.
+ */
+function log(msg) {
+  const lines = el.log.innerHTML.split('\n').filter(Boolean);
+  let formatted = msg;
+
   if (msg.includes('[ERR!]') || msg.includes('FATAL ERROR')) {
-    formattedMsg = `<span class="log-error">${msg}</span>`;
+    formatted = `<span class="log-error">${msg}</span>`;
   } else if (msg.includes('[WARN]') || msg.includes('[SKIP]') || msg.includes('Retry')) {
-    formattedMsg = `<span class="log-skip">${msg}</span>`;
+    formatted = `<span class="log-skip">${msg}</span>`;
   } else if (msg.includes('[DRY RUN]')) {
-    formattedMsg = `<span style="color: var(--accent-yellow);">${msg}</span>`;
+    formatted = `<span style="color: var(--accent-yellow);">${msg}</span>`;
   } else if (msg.includes('[OK]')) {
-    formattedMsg = `<span style="color: var(--fg-color); font-weight: bold;">${msg}</span>`;
-  } else {
-    // Teks biasa dibiarkan var(--fg-highlight) (abu-abu terang)
+    formatted = `<span style="color: var(--fg-color); font-weight: bold;">${msg}</span>`;
   }
 
-  // Tambah log BARU DI BAWAH (Append bottom)
-  lines.push(formattedMsg);
-  elLog.innerHTML = lines.join('\n');
-  
-  // Auto-scroll terminal ke bawah
-  elLog.scrollTop = elLog.scrollHeight;
+  lines.push(formatted);
+  el.log.innerHTML = lines.join('\n');
+  el.log.scrollTop = el.log.scrollHeight;
 }
 
+/**
+ * Kirim pesan ke tab aktif Facebook.
+ * @param {Object} msg - Objek pesan.
+ * @returns {Promise<*>}
+ */
 async function sendToActiveTab(msg) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.url || tab.url.startsWith("chrome://") || !tab.url.includes('facebook.com')) {
+  if (!tab?.url?.includes('facebook.com') || tab.url.startsWith('chrome://')) {
     log('> [ERR!] Open fb.com/friends first');
     return null;
   }
   return new Promise((resolve) => {
-    try {
-      chrome.tabs.sendMessage(tab.id, msg, (res) => {
-        if (chrome.runtime.lastError) resolve(null);
-        else resolve(res);
-      });
-    } catch (e) {
-      resolve(null);
-    }
+    chrome.tabs.sendMessage(tab.id, msg, (res) => {
+      resolve(chrome.runtime.lastError ? null : res);
+    });
   });
 }
 
-// ---- RENDER LIST ----
+/** Atur status aktif/nonaktif seluruh tombol kontrol. */
+function setControlsEnabled(enabled) {
+  el.btnScan.disabled = !enabled;
+  el.btnExec.disabled = !enabled;
+  el.chkDryRun.disabled = !enabled;
+  el.actionType.disabled = !enabled;
+  el.btnExec.innerText = enabled ? 'EXECUTE' : 'RUNNING...';
+}
+
+/** Update angka statistik "Total Target" berdasar jumlah checkbox terseleksi. */
+function updateCounter() {
+  const total = friendsData.length;
+  const selected = document.querySelectorAll('.nra-chk-target:checked').length;
+  el.statTotal.innerText = selected;
+  el.chkAll.checked = selected === total && total > 0;
+}
+
+// --- RENDER ---
+
+/**
+ * Render daftar target ke panel sidebar.
+ * @param {Array} friends - Daftar target.
+ */
 function renderList(friends) {
   friendsData = friends;
-  elList.innerHTML = '';
+  el.list.innerHTML = '';
 
   if (friends.length === 0) {
-    elList.innerHTML = '<div style="text-align:center;color:var(--fg-dim);padding-top:20px">&gt; No target data.</div>';
+    el.list.innerHTML = '<div style="text-align:center;color:var(--fg-dim);padding-top:20px">&gt; No target data.</div>';
     updateCounter();
     return;
   }
@@ -97,33 +120,25 @@ function renderList(friends) {
     lbl.appendChild(chk);
     lbl.appendChild(span);
     row.appendChild(lbl);
-    elList.appendChild(row);
+    el.list.appendChild(row);
   });
 
   updateCounter();
 }
 
-function updateCounter() {
-  const total = friendsData.length;
-  const selected = document.querySelectorAll('.nra-chk-target:checked').length;
-  elStatTotal.innerText = selected;
-  elChkAll.checked = selected === total && total > 0;
-}
+// --- POSTMESSAGE LISTENER (menerima dari host FB via iframe) ---
 
-// ---- POSTMESSAGE LISTENER (IFRAME) ----
 window.addEventListener('message', (event) => {
   if (!event.origin.includes('facebook.com') || !event.data) return;
 
   if (event.data.action === 'SCAN_PROGRESS') {
     const targetInfo = event.data.targetTotal > 0 ? ` of ${event.data.targetTotal}` : '';
     const progressMsg = `<span style="color: var(--accent-blue);">> Auto-scrolling... Found ${event.data.count}${targetInfo} targets.</span>`;
-    
-    // Update TOTAL TARGET stat in real-time
-    elStatTotal.innerText = event.data.count;
+    el.statTotal.innerText = event.data.count;
 
-    const currentLog = elLog.innerHTML;
+    const currentLog = el.log.innerHTML;
     if (currentLog.includes('> Auto-scrolling...')) {
-      elLog.innerHTML = currentLog.replace(/<span[^>]*>> Auto-scrolling\.\.\. Found \d+(?: of \d+)? targets\.<\/span>/, progressMsg);
+      el.log.innerHTML = currentLog.replace(/<span[^>]*>> Auto-scrolling\.\.\. Found \d+(?: of \d+)? targets\.<\/span>/, progressMsg);
     } else {
       log(progressMsg);
     }
@@ -137,105 +152,73 @@ window.addEventListener('message', (event) => {
     } else {
       log('> [WARN] Target list not found.');
     }
-    elBtnScan.disabled = false;
-    elBtnScan.innerText = 'SCAN';
+    el.btnScan.disabled = false;
+    el.btnScan.innerText = 'SCAN';
   }
 });
 
-// ---- EVENT LISTENERS ----
-elBtnClose.addEventListener('click', () => {
-  sendToActiveTab({ action: 'TOGGLE_SIDEBAR' });
-});
+// --- EVENT LISTENERS ---
 
-elBtnScan.addEventListener('click', () => {
+el.btnClose.addEventListener('click', () => sendToActiveTab({ action: 'TOGGLE_SIDEBAR' }));
+
+el.btnScan.addEventListener('click', () => {
   log('> Init Auto-Scroll & DOM Extraction...');
-  elBtnScan.disabled = true;
-  elBtnScan.innerText = 'SCANNING...';
+  el.btnScan.disabled = true;
+  el.btnScan.innerText = 'SCANNING...';
   window.parent.postMessage({ action: 'REQUEST_SCAN' }, '*');
 });
 
-elChkAll.addEventListener('change', (e) => {
-  document.querySelectorAll('.nra-chk-target').forEach(chk => {
-    chk.checked = e.target.checked;
-  });
+el.chkAll.addEventListener('change', (e) => {
+  document.querySelectorAll('.nra-chk-target').forEach(chk => { chk.checked = e.target.checked; });
   updateCounter();
 });
 
-elBtnExec.addEventListener('click', async () => {
+el.btnExec.addEventListener('click', async () => {
   const checked = document.querySelectorAll('.nra-chk-target:checked');
-  if (checked.length === 0) {
-    log('> [WARN] No target selected');
-    return;
-  }
+  if (checked.length === 0) { log('> [WARN] No target selected'); return; }
 
-  const queue = Array.from(checked).map(chk => {
-    return friendsData.find(x => x.id === chk.id);
-  }).filter(Boolean);
-
-  const dryRun = elChkDryRun.checked;
-  const actionType = elActionType.value;
+  const queue = Array.from(checked).map(chk => friendsData.find(x => x.id === chk.id)).filter(Boolean);
+  const dryRun = el.chkDryRun.checked;
+  const actionType = el.actionType.value;
   log(`> Sending ${queue.length} targets [${actionType.toUpperCase()}] ${dryRun ? '(DRY RUN)' : ''}`);
 
-  elBtnScan.disabled = true;
-  elBtnExec.disabled = true;
-  elChkDryRun.disabled = true;
-  elActionType.disabled = true;
-  elBtnExec.innerText = 'RUNNING...';
-
-  elStatProc.innerText = '0';
-  elStatSucc.innerText = '0%';
-  elStatEta.innerText = 'Calc...';
+  setControlsEnabled(false);
+  el.statProc.innerText = '0';
+  el.statSucc.innerText = '0%';
+  el.statEta.innerText = 'Calc...';
   startTime = Date.now();
-
   await sendToActiveTab({ action: 'EXECUTE', queue, dryRun, actionType });
 });
 
-elBtnKill.addEventListener('click', async () => {
+el.btnKill.addEventListener('click', async () => {
   log('> SENDING KILL SIGNAL...');
   await sendToActiveTab({ action: 'KILL' });
-
-  elBtnScan.disabled = false;
-  elBtnExec.disabled = false;
-  elChkDryRun.disabled = false;
-  elActionType.disabled = false;
-  elBtnExec.innerText = 'EXECUTE';
+  setControlsEnabled(true);
 });
 
-// Listener untuk UI log dari executor
+// --- CHROME RUNTIME LISTENER ---
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'LOG') {
     log(msg.text);
   }
 
   if (msg.action === 'PROGRESS') {
-    const proc = msg.current;
-    const total = msg.total;
-    const succ = msg.results.success;
+    el.statProc.innerText = msg.current;
+    const rate = msg.current > 0 ? Math.round((msg.results.success / msg.current) * 100) : 0;
+    el.statSucc.innerText = `${rate}%`;
 
-    elStatProc.innerText = proc;
-
-    const rate = proc > 0 ? Math.round((succ / proc) * 100) : 0;
-    elStatSucc.innerText = `${rate}%`;
-
-    if (proc > 0) {
+    if (msg.current > 0) {
       const elapsed = Date.now() - startTime;
-      const avgTime = elapsed / proc;
-      const left = total - proc;
-      const etaMs = left * avgTime;
-      const etaSec = Math.round(etaMs / 1000);
-      const m = Math.floor(etaSec / 60);
-      const s = etaSec % 60;
-      elStatEta.innerText = `${m}m ${s}s`;
+      const left = msg.total - msg.current;
+      const etaSec = Math.round((left * elapsed / msg.current) / 1000);
+      el.statEta.innerText = `${Math.floor(etaSec / 60)}m ${etaSec % 60}s`;
     }
   }
 
   if (msg.action === 'EXEC_DONE') {
     log(`> DONE. OK:${msg.results.success} FAIL:${msg.results.failed}`);
-    elStatEta.innerText = '0m 0s';
-    elBtnScan.disabled = false;
-    elBtnExec.disabled = false;
-    elChkDryRun.disabled = false;
-    elActionType.disabled = false;
-    elBtnExec.innerText = 'EXECUTE';
+    el.statEta.innerText = '0m 0s';
+    setControlsEnabled(true);
   }
 });

@@ -34,6 +34,7 @@
       "js": [
         "utils/delay.js",
         "utils/state.js",
+        "content/scraper.js",
         "content/dom.js",
         "content/executor.js"
       ],
